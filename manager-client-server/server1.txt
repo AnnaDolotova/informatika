@@ -1,0 +1,273 @@
+﻿#include <stdlib.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/sem.h>
+#include <sys/ipc.h>
+#include <pthread.h>
+#include <fcntl.h>
+#include <string.h>
+
+#include "msg_enum.h"
+
+#define TMP_PATH "/tmp/data.tmp"
+#define THREAD_STEP 2
+#define handle_error(MSG) \
+	do { perror(MSG "\n"); exit(-1); } while(NULL)
+
+#define PRINT(name, max) \
+	for(i = 0; i < max; i++) \
+	    printf("%d ", name[i]);
+
+int size = 0;//размер матрицы
+int* data1  = 0;//указатель на данные первой матрицы
+int* data2  = 0;//на данные второй матрицы
+int* result = 0;//матрицы с результатом
+int msqid = 0;// id очереди
+
+struct thread_info {//для того чтобы знать что к чему относится
+    pthread_t id;
+  int target;//номер клиента (pid процесса)
+};
+
+void* thread_work(long int myid, long int target);
+
+void* thread_init(void* arg) {//функция ответ на поздороваться
+    int err = 0;
+    struct thread_info* tinfo = arg;//структура, принадлежащая этому треду (айди клиента и цель(номер))
+    int short_length = sizeof(int) + sizeof(char) * 2;
+    struct msg_data short_data = {0}; 
+    long int target = tinfo -> target;//номер куда отсылаем сообщение
+    long int myid = (long int)tinfo -> target + INT_MAX;
+
+    short_data.type = target;//формируем приветственное сообщение
+    short_data.inner_data.subtype = HELLO;
+    short_data.inner_data.data = size;
+
+    err = msgsnd(msqid, &short_data, short_length, 0);
+    if(err < 0)
+	handle_error("Msgsnd error");
+
+    thread_work(myid, target);//считаем для конечной матрицы
+}
+
+void* thread_work(long int myid, long int target)
+{
+    int i = 0;
+    int element = 0;
+    int line = 0;
+    int column = 0;
+    int err = 0;
+    int short_length = sizeof(struct inner_data);
+    struct msg_data* data = (struct msg_data*)calloc(1, sizeof(struct msg_data));
+    int long_length = sizeof(char) + (size * 2 + 1) * sizeof(int);
+    int* numbers = 0;
+
+    while(1) {
+
+	data -> type = MAIN_ID;
+	data ->inner_data. subtype = GIVETASK;
+	data ->inner_data. data = (int)target;
+
+	err = msgsnd(msqid, data, short_length, 0);
+	if(err < 0)
+	    handle_error("Msgsnd error");
+
+	err = msgrcv(msqid, data, short_length, myid, 0);
+	if(err < 0)
+	    handle_error("Msgrcv hello message");
+
+	switch(data->inner_data.subtype) {
+
+	case DOWORK : // начинает формировать сообщение для клиента
+	  data -> type = target;// куда отправляем -в  pid
+
+	  element = data ->inner_data. data;//
+	  line = element / size;//
+	  column = element % size;
+
+			numbers = data -> inner_data.array;
+
+			memcpy(numbers, &data1[line * size], size * sizeof(int));
+			for(i = 0; i < size; i++)
+			    memcpy(&(numbers[size + i]), &(data2[column + i * size]), sizeof(int));
+
+			printf("%d\n", data->inner_data.data);
+
+
+			data -> inner_data.data = element;
+			err = msgsnd(msqid, data, long_length, 0);
+			if(err <0)
+			     handle_error("Msgsnd error");
+
+			err = msgrcv(msqid, data, short_length, myid, 0);
+			if(err < 0)
+			    handle_error("Msgget error");
+
+			if(data ->inner_data. subtype != WORKDONE)
+			    handle_error("Unknow message subtype");
+
+			result[element] = data ->inner_data. data;
+			break;
+
+	case BYE :
+	  data ->type = target;//перенаправляем сообщение клиенту
+			err = msgsnd(msqid, data, sizeof(struct msg_data), 0);
+			if(err < 0)
+			    handle_error("Msgsnd error");
+
+			err = msgrcv(msqid, data, short_length, myid, 0);
+			if(err < 0)
+			    handle_error("Msgrcv error");
+
+			if(data ->inner_data.subtype != BYE)
+			    handle_error("Incorect bye message from client");
+
+			printf("Client no# %ld detached \n", target);
+
+			return;
+	default  :
+		handle_error("Unknow message subtype");
+	}
+    }
+}
+
+int main()
+{
+  int thread_limit = 4;//max число ног осм
+  struct thread_info** tinfo = (struct thread_info**)calloc(thread_limit, sizeof(struct thread_info*));//храним ноги осминога
+  int client_count = 0;//текущее количество ног осминога
+  int curr_elem  = 0;//текущий элемент, кот мы считаем
+  int elem_count = 0;//всего n^2
+    int i = 0;
+    int err = 0;
+    int number = 0;
+    key_t key = 0;
+    int semid = 0;
+    struct msg_data short_data = {0};//инициализируем нулевым множеством
+    int short_length = 0;//за исключением тайпа
+    struct sembuf sem[SEM_NUM] = {0};//массив семафоров
+    int num = 0;//файловый дискриптор, в кот храним данные массива
+    int fd = 0;
+
+    key = ftok(FTOK_PATH, 0);//ключ для сообщений и семафоров
+    if(key < 0)
+	handle_error("Ftok error");
+
+    msqid = msgget(key, IPC_CREAT | 0666);//опред сообщение очереди
+    if(msqid < 0)
+	handle_error("Msgget error");
+
+    semid = semget(key, SEM_NUM, IPC_CREAT | 0666);// опред массив семафоров
+    if(semid < 0)
+	handle_error("semget error");
+
+    SEM_SET(0, 1, 0);
+    semop(semid, sem, 1);
+
+    fd = open(TMP_PATH, O_RDONLY);
+    if(fd < 0)
+	handle_error("Open error");
+
+    err = read(fd, &size, sizeof(int));//считываем n
+    if(err < 0 || size < 0)
+	handle_error("Read n error");
+
+    elem_count = size * size;// сколько нужно посчитать
+
+    data1 = (int*)calloc(elem_count * 3, sizeof(int)); // выделяем данные под все матрицы
+    if(!data1)
+	handle_error("Calloc error");
+
+    data2 = data1 + elem_count;//указатель на вторую матрицу
+    result = data2 + elem_count;//на итоговую матрицу
+
+    err = read(fd, data1, elem_count * 2 * sizeof(int));// считываем из файла две первые матр
+    if(err < 0)
+	handle_error("Read data error");
+
+    short_length = sizeof(struct inner_data);//вычисляем длину короткой структуры
+
+    while(curr_elem != elem_count) {
+
+	msgrcv(msqid, &short_data, short_length, MAIN_ID, 0);
+
+	switch(short_data.inner_data.subtype) { //как иф короче, выбираем из множества нужное знач
+
+	case HELLO    :
+			if(client_count == thread_limit) {
+			    thread_limit *= THREAD_STEP;
+			    tinfo = (struct thread_info**)realloc(tinfo, sizeof(struct thread_info*) * thread_limit);
+			}
+
+			tinfo[client_count] = (struct thread_info*)calloc(1, sizeof(struct thread_info));//выделяем место под одно щуп, прикрепляем его туда
+			tinfo[client_count] -> target = short_data.inner_data.data;//указатель на щупальце кладем в дырку 
+
+			err = pthread_create(&(tinfo[client_count] -> id), 0, thread_init, tinfo[client_count]);// вызываем код щупальца, оживляем так
+			if(err < 0)
+			     handle_error("Pthread_create error");
+
+			client_count++;// увеличиваем счетчик, так как мы создали одно щупальце только что
+
+			break;
+
+	case GIVETASK :// каждое щупальце просит задание
+	  short_data.inner_data.subtype = DOWORK;// пид процесса, за кот зацепляется щупальце
+	  short_data.type    = (long int)short_data.inner_data.data + INT_MAX;// преобразование в номер треда
+	  short_data.inner_data.data    = (long int)curr_elem++; //клдаем старый, получаем новый элемент
+
+			err = msgsnd(msqid, &short_data, short_length, 0);
+			if(err < 0)
+			    handle_error("Msgsnd error");
+
+			break;
+
+	default : 	handle_error("Received message subtype is invalid");
+	}
+    }
+
+    i = client_count - 1;//счетчик массива, массив элементов от 0 до k-1, чтобы получить последний элемент выч 1
+
+    while(client_count > 0) {
+	msgrcv(msqid, &short_data, short_length, MAIN_ID, 0);
+
+	if(short_data.inner_data.subtype == GIVETASK) {// пришел взять, а нечего
+	  client_count--;// отправляем его назад
+	    short_data.type = (long int)short_data.inner_data.data + INT_MAX;
+	}
+	else
+	  if(short_data.inner_data.subtype == HELLO)// подкл новый клиент
+		short_data.type = short_data.inner_data.data;
+	    else
+		handle_error("Received message subtype is invalid");
+
+	short_data.inner_data.subtype = BYE;
+
+	err = msgsnd(msqid, &short_data, short_length, 0);
+	if(err < 0)
+	    handle_error("Msgsnd error");
+    }
+
+    for(; i >= 0; i--) { //ждем завершение всех тредов, уже со всеми попрощались
+	err = pthread_join(tinfo[i] -> id, 0);
+	if(err < 0)
+	    handle_error("Pthread_join error");
+    }
+
+    for(i = 0; i < elem_count; i++) { // распечатываем в консоль
+	if(i % size == 0)
+	    printf("\n");
+	printf(" %10d ", result[i]);
+    }
+
+    printf("\n");
+
+    err = msgctl(msqid, IPC_RMID, 0);
+    if(err < 0)
+	handle_error("Msgctl error");
+
+    err = semctl(semid, IPC_RMID, 0);
+    if(err < 0)
+	handle_error("Shmctl error");
+
+    return 0;
+}
