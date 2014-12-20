@@ -1,0 +1,80 @@
+#include <stdio.h> 
+#include <stdlib.h> 
+#include <unistd.h> 
+#include <sys/types.h> 
+#include <sys/ipc.h> 
+#include <sys/shm.h> 
+#include <string.h> 
+#include <fcntl.h> 
+#include "mylib.h"  
+ 
+#define AR_SIZE 1024 
+#define FILE_2 "/bin/sh" 
+#define FILE_1 "./res_file.txt"  
+ 
+int main(int argc, char** argv) 
+{ 
+ 	key_t key; 
+   	int shmid; 
+ 	int size; 
+ 	int pipefd[2] = {0}; 
+ 	int pp = pipe(pipefd); 
+ 	void* data = 0; 
+ 	int re = 1; 
+ 	char* array = (char*)calloc(AR_SIZE, sizeof(char)); 
+ 	int i; 
+ 	char* buf;  
+ 	int f = fork();  
+ 
+ 	if (f == -1) 
+ 	{ 
+ 		perror("fork"); 
+ 		exit(1); 
+ 	}  
+ 
+ 	if (f == 0) 
+ 	{ 
+ 		close(pipefd[0]); 
+ 		dup2(pipefd[1], STDOUT_FILENO); 
+ 		execlp("ps", "ps", argv[1], NULL); 
+ 		perror("fork"); 
+ 	} 
+  
+ 	wait(); 
+  
+ 	close(pipefd[1]);  
+ 
+ 	new_read(pipefd[0], array);  	 
+ 	size = strlen(array);  
+ 
+ 	if ((key = ftok(FILE_2, 0)) < 0) 
+ 	{ 
+ 		perror("ftok"); 
+ 		exit(1); 
+ 	}  
+ 
+ 	if ((shmid = shmget(key, size, IPC_CREAT|SHM_R|SHM_W)) < 0) 
+ 	{ 
+ 		perror("shmget"); 
+ 		exit(1); 
+	} 
+ 	 
+ 	if((buf = shmat(shmid, 0, 0)) < 0) 
+ 	{ 
+ 		perror("shmat"); 
+ 		exit(1); 
+ 	} 
+  
+ 	strcpy(buf, array);  
+ 
+ 	if (shmdt((void*)buf) < 0) 
+ 	{ 
+ 		perror("shmdt"); 
+ 		exit(1); 
+ 	} 
+  
+ 	printf("Writing to memory successfully!\n");  
+  	unlink(FILE_1); 
+ 
+ 	return 0; 
+ } 
