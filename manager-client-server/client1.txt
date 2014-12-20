@@ -1,0 +1,135 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/sem.h>
+#include <sys/ipc.h>
+#include <fcntl.h>
+#include <string.h>
+
+#include "msg_enum.h"
+
+#define handle_error(MSG) \
+	do { perror(MSG "\n"); exit(-1); } while(NULL)
+
+#define LOG "Client with pid %10ld. Calculated element No %10d. The result is %10d \n"
+#define LOG_SIZE sizeof(LOG) + 30 + 1
+
+int main()
+{
+    int size = 0;
+    int* data = 0;
+    int retval = 0;
+    int i = 0;
+    int err = 0;
+    int number = 0;
+    key_t key = 0;
+    int msqid = 0;
+    int semid = 0;
+    struct msg_data short_data = {0};
+    struct msg_data* long_data = 0;
+    long int employee_id = 0;
+    long int my_id = 0;
+    int short_length = 0;
+    int long_length = 0;
+    struct sembuf sem[SEM_NUM] = {0};
+    int fd = 0;
+    int num = 0;
+    char buff[LOG_SIZE] = {0};
+
+    key = ftok(FTOK_PATH, 0);  //Key for messages
+    if(key < 0)
+	handle_error("Ftok error");
+
+    msqid = msgget(key, 0);	//Identifier of message queue
+    if(msqid < 0)
+	handle_error("Msgget error");
+
+    semid = semget(key, SEM_NUM, 0);	//Identifier of semaphore array
+    if(semid < 0)
+	handle_error("semget error");
+
+
+    my_id = getpid();
+    short_data.type = MAIN_ID; // look into the box, type inside=main_id; head of octopus
+    short_data.inner_data.subtype = HELLO; //first message hand shake
+    short_data.inner_data.data = (int)my_id; // introduce himself to server
+
+    short_length = sizeof(char) * 2 + sizeof(int);
+
+    err = msgsnd(msqid, &short_data, short_length, 0);	//send a message
+    if(err < 0)
+	handle_error("Msgsnd error");
+
+    err = msgrcv(msqid, &short_data, short_length, my_id, 0);//receive an answer
+    if(err < 0)
+	handle_error("Msgrcv client answer error");
+
+    if(short_data.inner_data.subtype == BYE) //Decide if it is an end of the conversation nor the begining
+	return 0;
+    else
+	if(short_data.inner_data.subtype == HELLO) {
+    	    size = short_data.inner_data.data;
+    	    employee_id = my_id + INT_MAX;
+        } else
+	    handle_error("Unknown message subtype");
+
+    long_length = sizeof(char) + size * 2 * sizeof(int) + sizeof(int);
+    long_data = (struct msg_data*)calloc(sizeof(long int) + long_length, 1);
+
+    while(1) {
+	retval = 0;
+
+	err = msgrcv(msqid, long_data, long_length, my_id, 0);	//Receive a message
+	if(err < 0)
+	    handle_error("Msgrcv error");
+
+	if(long_data -> inner_data.subtype == DOWORK);	//Decide if go home nor work
+        else if(long_data -> inner_data.subtype == BYE)
+	    break;
+	    else {
+		printf("Unknown message subtype");
+		exit(-1);
+	    }
+
+	data = long_data -> inner_data.array; //jump to elements array
+
+	printf("%p %p", long_data, &(long_data -> type), long_data -> inner_data.array);
+
+	for(i = 0; i < size; i++) {
+	    retval += data[i] * data[i + size];
+	    printf("%d += %d * %d\n", retval, data[i], data[i + size]);
+	}
+
+        SEM_SET(0, -1, 0);
+	semop(semid, sem, 1);// semaphor operation,1-once used
+
+	fd = open(LOG_PATH, O_WRONLY | O_APPEND); //write to the end of the file
+
+	sprintf(buff, LOG, my_id, long_data ->inner_data. data, retval); //Write into a file associated with stream
+
+	write(fd, buff, strlen(buff));
+
+	close(fd);
+	sync();//sync for writing on drive
+
+	SEM_SET(0, 1, 0);
+	semop(semid, sem, 1);
+
+	short_data.type = employee_id;
+	short_data.inner_data.subtype = WORKDONE;
+	short_data.inner_data.data = retval;
+
+	err = msgsnd(msqid, &short_data, short_length, 0);
+	if(err < 0)
+	    handle_error("Msgsnd error");
+    }
+
+    long_data -> type = employee_id;
+    err = msgsnd(msqid, long_data, short_length, 0);
+    if(msgsnd == 0)
+	handle_error("Msgsnd bye error");
+
+    free(long_data);
+
+    return 0;
+}
