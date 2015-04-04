@@ -56,7 +56,7 @@ public:
     bool addelement(char* string)
     {
         if (count == max_table_size) {
-            cout << "“аблица переполнена" << endl;
+            cout << "Table is full" << endl;
             return false;
         }
         
@@ -66,20 +66,20 @@ public:
             if (hashtable[hash_element]==0) {
                 hashtable[hash_element] = string;
                 count++;
-				cout << "Ёлемент успешно добавлен!" << endl;
+				cout << "Element added successfully!" << endl;
 				return true;
             }
 			 if (hashtable[hash_element]==(char*)0x1){
                 hashtable[hash_element] = string;
                 count++;
-				cout << "Ёлемент успешно добавлен!" << endl;
+				cout << "Element added successfully!" << endl;
 				return true;
             }
             else {
                 hash_element = (hash_element + 1) % max_table_size;
             }
         }
-        cout << "нет!" << endl;
+     
         return false;
     }
     
@@ -88,21 +88,21 @@ public:
     {
         int res = Innerfind(string);
         if(res == -1){
-            cout << "”дал€емый элемент не найден!" << endl;
+            cout << "Deleted element is not found!" << endl;
             return -1;
         }
         hashtable[res] = (char*)0x1;
-        cout << "”даление произошло успешно!"<< endl;
+        cout << "Element deleted successfully!"<< endl;
         return 1;
     }
     int findelement(char* string){
         int index = Innerfind(string);
         
         if(index == -1){
-            cout << "Ёлемент не найден!" << endl;
+            cout << "Element is not found!" << endl;
             return -1;
         }
-         cout << "“акой элемент есть!" << endl;
+         cout << "I found this element!!!" << endl;
         return 1;
     }
     

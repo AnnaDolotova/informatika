@@ -18,7 +18,7 @@ int hashfunction(char* string)
 int main() {
     setlocale (LC_ALL,"Russian");
     int max_table_size;
-    cout << "¬ведите размер будущей таблицы";
+    cout << "Enter the size of the table";
     cin >> max_table_size;
     HashTable *First = new HashTable(max_table_size, *hashfunction);
     
