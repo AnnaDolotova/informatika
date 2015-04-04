@@ -9,10 +9,10 @@ using namespace std;
 class Graph {
 	private:
 	
-		int number; // количество вершин в графе
-		char* matrix; // указатель на матрицу
+		int number; // number of vertex in matrix
+		char* matrix; // pointer to matrix
 
-		bool recursion(int k, int tmp, char* path_of_vertex, int to, int b) {  // рекурсия для поиска пути в графе
+		bool help(int k, int tmp, char* path_of_vertex, int to, int b) {  // function, which helps to find path
 			for (int i=b; i<=number; i++) {
 				if (matrix[(tmp-1)*number+i-1] == 1) {
 					path_of_vertex[k] = i;
@@ -34,12 +34,12 @@ class Graph {
 		}
 
     public:
-		Graph(int count_of_vertex){  // конструктор
+		Graph(int count_of_vertex){  // constructor
 			number = count_of_vertex;
 			matrix = (char*)calloc(sizeof(char), number*number);
 		}
     
-		void fill_graph() {  // заполнение матрицы смежности
+		void fill_graph() {  // filling matrix by random
 			srand(time(0));
 			for (int i=0; i<number; i++) {
 				for (int j=0; j<number; j++) 
@@ -47,7 +47,7 @@ class Graph {
 			}
 		}
 
-		void print_graph_like_matrix() { // печать матрицы смежности
+		void print_graph_like_matrix() { // print matrix
 			for (int i=0; i<number; i++) {
 
 				for (int j=0; j<number; j++) 
@@ -56,19 +56,19 @@ class Graph {
 			};
 		}
 
-		void path(int from, int to) {  // поиск пути в графе
-			char* path_of_vertex; // сюда будем записывать путь, по которому шли, чтобы попасть в вершину
+		void path(int from, int to) {  // finding path
+			char* path_of_vertex; // tmp path
 			path_of_vertex = (char*)calloc(sizeof(char), number);
 
-			int k = 1; // количество пройденных ребёр
-			int tmp = from; //вершина, в которой находимся в данный момент
+			int k = 1; // number of vertex, which were found in path
+			int tmp = from; // tmp vertex
 			path_of_vertex[0]=from;
 			int b=1;
 
-			bool existing = recursion(k, tmp, path_of_vertex, to, b);
+			bool existing = help(k, tmp, path_of_vertex, to, b);
 
 			if (existing == true) {
-				cout << "Путь из вершины " << from << " в вершину " << to << ": ";
+				cout << "Path from vertex " << from << " to " << to << ": ";
 				for (int i=0; i<number; i++) {
 					if (path_of_vertex[i] != 0) {
 						cout << (int)path_of_vertex[i];
@@ -76,13 +76,13 @@ class Graph {
 				}
 				cout << endl;
 			}
-			else cout << "Путь из вершины " << from << " в вершину " << to << " не существует."  << endl;
+			else cout << "Path from vertex " << from << " to " << to << " doesn't exist."  << endl;
 		}
 
 
-		~Graph() {  // деструктор
+		~Graph() {  // destructor
 			free(matrix);
-			cout << "Память была очищена. До свидания!" << endl;
+			cout << "Memory was deleted. Good bye!" << endl;
 		}    
 
 };
