@@ -7,7 +7,7 @@ class HashTable {
 private:
     
     int max_table_size;
-    int count; // количество элементов в массиве
+    int count; // the number of eements in the array
     char** hashtable;
     int (*hashfunction) (char* string);
     
@@ -52,7 +52,7 @@ public:
 		//delete hashtable;
     }
     
-    //это функция добалвеня элемента, она вернёт false, если таблица переполнена, и вернёт true, если элемент удлалось добавить.
+    //the function of adding elements, it returns false, if the table is full, and returns true, if the element is able to add.
     bool addelement(char* string)
     {
         if (count == max_table_size) {
@@ -83,7 +83,7 @@ public:
         return false;
     }
     
-    //функция удаления элемета. Если элемент
+    //function of removal
     int deleteelement (char* string)
     {
         int res = Innerfind(string);
