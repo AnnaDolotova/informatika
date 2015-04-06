@@ -26,6 +26,7 @@ int main() {
     First->addelement("asfdae");
     First->addelement("aasfde");
     First->addelement("aaedfs");
+	First-> printtable ();
     
     //Add two more elements to test an overflow of our hash-table
     First->addelement("lishiy");

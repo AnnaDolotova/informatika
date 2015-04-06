@@ -82,6 +82,16 @@ public:
      
         return false;
     }
+
+	//funcrion of printing
+	void printtable () {
+		for (int i=0; i<max_table_size; i++){
+			//if(!hashtable[i]) continue;
+			cout << hashtable[i] << endl;
+		};
+		cout << endl;
+	}
+
     
     //function of removal
     int deleteelement (char* string)
