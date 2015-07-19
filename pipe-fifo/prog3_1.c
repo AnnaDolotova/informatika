@@ -113,7 +113,7 @@ int main(int argc, char* argv[])
 
 			size_t nbytes = 0;
 
-
+			// AP: сделайте запись прямо в пайп - без промежуточного файла
 			if ((nbytes = write(fd_file, STRING, strlen(STRING))) < strlen(STRING)) {
 
 				printf("Can't write all bytes\n");
@@ -153,6 +153,7 @@ int main(int argc, char* argv[])
 		
 int i = 0;
 
+		// AP: с пайпом это не понадобится
 		for (i = 0; i < 1000000000; i++);
 
 
